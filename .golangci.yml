@@ -1,0 +1,45 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gocritic
+    - nestif
+    - revive
+
+  settings:
+    revive:
+      rules:
+        - name: exported
+        - name: var-naming
+        - name: error-return
+        - name: error-strings
+        - name: indent-error-flow
+        - name: superfluous-else
+
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+
+    nestif:
+      min-complexity: 4
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/MutterPedro/otserver
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
