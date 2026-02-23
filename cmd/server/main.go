@@ -16,7 +16,7 @@ import (
 
 func main() {
 	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		fmt.Fprintf(os.Stderr, "error on server initialization: %v\n", err)
 		os.Exit(1)
 	}
 }
@@ -25,17 +25,20 @@ func run() error {
 	configPath := flag.String("config", "config.toml", "path to TOML config file")
 	flag.Parse()
 
+	// setup logger
 	logger, err := zap.NewProduction()
 	if err != nil {
 		return fmt.Errorf("failed to create logger: %w", err)
 	}
 	defer func() { _ = logger.Sync() }()
 
+	// load config
 	cfg, err := loadConfig(*configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load config %q: %w", *configPath, err)
 	}
 
+	// instantiate server instance
 	srv := network.NewServer(network.Config{
 		Address:        cfg.Server.Address,
 		MaxConnections: cfg.Server.MaxConnections,
@@ -44,6 +47,7 @@ func run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// graceful shutdown
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 	go func() {
@@ -52,6 +56,7 @@ func run() error {
 		cancel()
 	}()
 
+	// serve
 	ready := make(chan string, 1)
 	go func() {
 		addr := <-ready

@@ -1,0 +1,56 @@
+{
+    // Ensure we use the workspace module mode
+    "go.inferGopath": false,
+    // Use golangci-lint for the most comprehensive linting, configured by .golangci.yml
+    "go.lintTool": "golangci-lint",
+    "go.lintOnSave": "package",
+    // Run 'go vet' on save for standard static analysis
+    "go.vetOnSave": "package",
+    "go.vetFlags": [
+        "-all",
+        "-shadow"
+    ],
+    // Auto-format using gofumpt rather than plain gofmt
+    "go.formatTool": "gofumpt",
+    // Enable the language server (gopls) for Go
+    "go.useLanguageServer": true,
+    // Configure gopls to show maximum diagnostics
+    "gopls": {
+        "ui.diagnostic.staticcheck": true,
+        "ui.diagnostic.vulncheck": "Imports",
+        "ui.diagnostic.analyses": {
+            // General best practices and potential bugs
+            "nilness": true,
+            "shadow": true,
+            "unusedparams": true,
+            "unusedwrite": true,
+            "useany": true,
+            "unusedvariable": true,
+            // "fieldalignment": true,
+            "simplifycompositelit": true,
+            "simplifyrange": true,
+            "simplifyslice": true,
+            "infertypeargs": true,
+            "timeformat": true,
+            "fillreturns": true,
+            "nonewvars": true,
+            "noresultvalues": true,
+            "undeclaredname": true
+        },
+        // Show analyzer details in hover
+        "ui.diagnostic.annotations": {
+            "bounds": true,
+            "escape": true,
+            "inline": true,
+            "nil": true
+        },
+        // "formatting.gofumpt": true
+    },
+    // Editor settings to run actions on save
+    "[go]": {
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+        }
+    }
+}

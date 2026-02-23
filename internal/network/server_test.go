@@ -83,7 +83,6 @@ func TestGracefulShutdown_GoroutineLeaks(t *testing.T) {
 
 	addr := <-ready
 
-	// Open a few connections to ensure per-connection goroutines exist.
 	var conns []net.Conn
 	for range 5 {
 		c, err := net.DialTimeout("tcp", addr, time.Second)
@@ -93,11 +92,9 @@ func TestGracefulShutdown_GoroutineLeaks(t *testing.T) {
 		conns = append(conns, c)
 	}
 
-	// Let server goroutines spin up.
 	runtime.Gosched()
 	time.Sleep(50 * time.Millisecond)
 
-	// Cancel and wait for clean exit.
 	cancel()
 	select {
 	case err := <-done:
@@ -112,10 +109,9 @@ func TestGracefulShutdown_GoroutineLeaks(t *testing.T) {
 		_ = c.Close()
 	}
 
-	// Allow goroutines to fully unwind.
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if runtime.NumGoroutine() <= baseline+1 { // +1 tolerance
+		if runtime.NumGoroutine() <= baseline+1 {
 			return
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -134,7 +130,6 @@ func TestServer_MaxConnectionsLimit(t *testing.T) {
 
 	addr := startTestServer(t, network.Config{Address: "127.0.0.1:0", MaxConnections: limit})
 
-	// Open exactly limit connections and keep them alive.
 	allowed := make([]net.Conn, limit)
 	for i := range limit {
 		c, err := net.DialTimeout("tcp", addr, 2*time.Second)

@@ -1,0 +1,8 @@
+{
+    "recommendations": [
+        "golang.go",
+        "redhat.vscode-yaml",
+        "davidanson.vscode-markdownlint",
+        "ms-azuretools.vscode-docker"
+    ]
+}

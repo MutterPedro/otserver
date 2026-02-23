@@ -1,3 +1,6 @@
+// Package config implements configuration loading and validation for the OTS
+// server. It parses TOML configuration files and provides default values for
+// missing fields.
 package config
 
 import (
@@ -7,33 +10,26 @@ import (
 	"github.com/pelletier/go-toml/v2"
 )
 
-// DefaultMaxConnections is the fallback when max_connections is zero or negative.
 const DefaultMaxConnections = 1000
 
-// ServerConfig holds TCP server configuration.
 type ServerConfig struct {
 	Address        string `toml:"address"`
 	MaxConnections int    `toml:"max_connections"`
 }
 
-// DatabaseConfig holds database connection configuration.
 type DatabaseConfig struct {
 	DSN string `toml:"dsn"`
 }
-
-// LogConfig holds logging configuration.
 type LogConfig struct {
 	Level string `toml:"level"`
 }
 
-// Config is the top-level application configuration.
 type Config struct {
 	Server   ServerConfig   `toml:"server"`
 	Database DatabaseConfig `toml:"database"`
 	Log      LogConfig      `toml:"log"`
 }
 
-// LoadFromReader parses TOML from r and returns a validated Config.
 func LoadFromReader(r io.Reader) (Config, error) {
 	var cfg Config
 
@@ -52,7 +48,6 @@ func LoadFromReader(r io.Reader) (Config, error) {
 
 	switch cfg.Log.Level {
 	case "debug", "info", "warn", "error":
-		// valid
 	default:
 		return Config{}, fmt.Errorf("log.level must be one of: debug, info, warn, error; got %q", cfg.Log.Level)
 	}
