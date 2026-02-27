@@ -5,7 +5,6 @@ import (
 	"fmt"
 )
 
-// Packet holds a decoded network packet's raw payload.
 type Packet struct {
 	Payload []byte
 }
