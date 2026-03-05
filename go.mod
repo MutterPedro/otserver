@@ -3,6 +3,7 @@ module github.com/MutterPedro/otserver
 go 1.25.0
 
 require (
+	github.com/gotesttools/gotestfmt/v2 v2.5.0
 	github.com/pelletier/go-toml/v2 v2.2.4
 	go.uber.org/zap v1.27.1
 )

@@ -158,5 +158,6 @@ $RECYCLE.BIN/
 # End of https://www.toptal.com/developers/gitignore/api/visualstudiocode,go,macos,windows,linux,lua
 
 .claude/PLAN*.md
+.claude/worktrees/
 server
 config.toml

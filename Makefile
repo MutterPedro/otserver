@@ -7,16 +7,16 @@ build:
 	go build -o server ./cmd/server/
 
 test:
-	go test -v ./...
+	go test -v -json ./... | gotestfmt
 
 test-race:
-	go test -race ./...
+	go test -race -json ./... | gotestfmt
 
 test-acc:
-	go test -run ^TestAcceptance ./...
+	go test -run ^TestAcceptance -json ./... | gotestfmt
 
 bench:
-	go test -bench . -benchmem ./...
+	go test -bench . -benchmem -json ./... | gotestfmt
 
 lint:
 	golangci-lint run ./...
