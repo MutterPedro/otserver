@@ -1,0 +1,17 @@
+{
+  "$schema": "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
+  "workspace.library": ["engine_api.lua"],
+  "runtime.version": "Lua 5.1",
+  "diagnostics.globals": [
+    "Game", "Player", "Creature", "Monster", "Npc",
+    "Item", "Container", "Teleport", "Podium", "Tile",
+    "Position", "Variant", "Combat", "Condition",
+    "MonsterType", "ItemType", "Vocation", "Town", "House",
+    "Guild", "Group", "Party", "Spell",
+    "Action", "TalkAction", "CreatureEvent", "MoveEvent", "GlobalEvent", "Weapon",
+    "NetworkMessage", "ModalWindow",
+    "db", "result", "DBInsert", "DBTransaction",
+    "configManager", "bit",
+    "storages"
+  ]
+}

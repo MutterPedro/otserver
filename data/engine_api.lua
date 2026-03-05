@@ -1,11 +1,11 @@
+-- Engine API type stubs for lua-language-server.
+-- Defines the Lua API surface exposed by the Go game engine (gopher-lua / Lua 5.1).
+-- This file is NOT loaded at runtime — it exists solely for IDE type-checking.
+
 ---@alias os.mtime fun(): number
 
 ---@alias table.create fun(arrayLength: number, keyLength: number): table
 ---@alias table.pack fun(...): table
-
----@class rawgetmetatable
----@field __index fun(self: table, key: any): any
-rawgetmetatable = {}
 
 ---@class bit
 ---@field band fun(a: number, b: number): number
@@ -1158,104 +1158,158 @@ XMLNode = {}
 -- Legacy Functions
 
 --- Adds an item to a player's inventory.
+---@param uid number
+---@param itemid number
+---@param count? number
+---@return number
 function doPlayerAddItem(uid, itemid, count) end
----@alias doPlayerAddItem fun(uid: number, itemid: number, count?: number): number
 
 --- Checks if a given UID is valid.
+---@param uid number
+---@return boolean
 function isValidUID(uid) end
----@alias isValidUID fun(uid: number): boolean
 
 --- Checks if a given UID is a depot.
+---@param uid number
+---@return boolean
 function isDepot(uid) end
----@alias isDepot fun(uid: number): boolean
 
 --- Checks if an item is movable.
+---@param uid number
+---@return boolean
 function isMovable(uid) end
----@alias isMovable fun(uid: number): boolean
 
 --- Adds an item to a container.
+---@param uid number
+---@param itemid number
+---@param count? number
 function doAddContainerItem(uid, itemid, count) end
----@alias doAddContainerItem fun(uid: number, itemid: number, count?: number)
 
 --- Retrieves the depot ID associated with a given UID.
+---@param uid number
+---@return number
 function getDepotId(uid) end
----@alias getDepotId fun(uid: number): number
 
 --- Gets the uptime of the world/server.
+---@return number
 function getWorldUpTime() end
----@alias getWorldUpTime fun(): number
 
 --- Gets the name of a subtype.
+---@param subType number
+---@return string
 function getSubTypeName(subType) end
----@alias getSubTypeName fun(subType: number): string
 
 --- Creates a combat area.
+---@param area table
+---@param extArea? table
 function createCombatArea(area, extArea) end
----@alias createCombatArea fun(area: table, extArea?: table)
 
 --- Executes area combat.
+---@param cid number
+---@param type number
+---@param pos table
+---@param area table
+---@param min number
+---@param max number
+---@param effect number
+---@param origin? number
+---@param blockArmor? boolean
+---@param blockShield? boolean
+---@param ignoreResistances? boolean
 function doAreaCombat(cid, type, pos, area, min, max, effect, origin, blockArmor, blockShield, ignoreResistances) end
----@alias doAreaCombat fun(cid: number, type: number, pos: table, area: table, min: number, max: number, effect: number, origin?: number, blockArmor?: boolean, blockShield?: boolean, ignoreResistances?: boolean)
 
 --- Executes target combat.
+---@param cid number
+---@param target number
+---@param type number
+---@param min number
+---@param max number
+---@param effect number
+---@param origin? number
+---@param blockArmor? boolean
+---@param blockShield? boolean
+---@param ignoreResistances? boolean
 function doTargetCombat(cid, target, type, min, max, effect, origin, blockArmor, blockShield, ignoreResistances) end
----@alias doTargetCombat fun(cid: number, target: number, type: number, min: number, max: number, effect: number, origin?: number, blockArmor?: boolean, blockShield?: boolean, ignoreResistances?: boolean)
 
 --- Challenges a creature.
+---@param cid number
+---@param target number
+---@param force? boolean
 function doChallengeCreature(cid, target, force) end
----@alias doChallengeCreature fun(cid: number, target: number, force?: boolean)
 
 --- Schedules an event to be called after a delay.
+---@param callback function
+---@param delay number
+---@param ... any
+---@return number
 function addEvent(callback, delay, ...) end
----@alias addEvent fun(callback: function, delay: number, ...: any): number
 
 --- Stops a scheduled event.
+---@param eventid number
 function stopEvent(eventid) end
----@alias stopEvent fun(eventid: number)
 
 --- Saves the server state.
 function saveServer() end
----@alias saveServer fun()
 
 --- Cleans the map.
 function cleanMap() end
----@alias cleanMap fun()
 
 --- Outputs a debug message.
+---@param text string
 function debugPrint(text) end
----@alias debugPrint fun(text: string)
 
 --- Checks if two creatures are in war.
+---@param cid number
+---@param target number
+---@return boolean
 function isInWar(cid, target) end
----@alias isInWar fun(cid: number, target: number): boolean
 
 --- Gets the position of a waypoint by name.
+---@param name string
+---@return table
 function getWaypointPositionByName(name) return {} end
----@alias getWaypointPositionByName fun(name: string): table
 
 --- Sends a message to a channel.
+---@param channelId number
+---@param type number
+---@param message string
 function sendChannelMessage(channelId, type, message) end
----@alias sendChannelMessage fun(channelId: number, type: number, message: string)
 
 --- Sends a message to a guild channel.
+---@param guildId number
+---@param type number
+---@param message string
 function sendGuildChannelMessage(guildId, type, message) end
----@alias sendGuildChannelMessage fun(guildId: number, type: number, message: string)
 
 --- Checks if the current interface is a scripts interface.
+---@return boolean
 function isScriptsInterface() end
----@alias isScriptsInterface fun(): boolean
 
+-- NPC interface functions (injected per-NPC script context)
+---@return number
 function getNpcCid() end
+---@param message string
+---@param player? Creature
 function selfSay(message, player) end
+---@param direction number
 function selfMove(direction) end
 function selfMoveTo(...) end
+---@param direction number
 function selfTurn(direction) end
+---@param creature Creature
 function selfFollow(creature) end
+---@param creature Creature
+---@return number
 function getDistanceTo(creature) end
+---@param creature Creature
 function doNpcSetCreatureFocus(creature) end
+---@param key string
+---@return string
 function getNpcParameter(key) end
+---@param shopWindow table
 function openShopWindow(shopWindow) end
 function closeShopWindow() end
+---@param item Item
 function doSellItem(item) end
 
 storages = {}
