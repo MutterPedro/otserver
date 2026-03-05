@@ -1,9 +1,9 @@
-package iomap_test
+package propstream_test
 
 import (
 	"testing"
 
-	"github.com/MutterPedro/otserver/internal/iomap"
+	"github.com/MutterPedro/otserver/pkg/propstream"
 )
 
 // TestPropStreamReadWriteRoundTrip verifies that values written with PropWriter
@@ -11,13 +11,13 @@ import (
 func TestPropStreamReadWriteRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	w := iomap.NewPropWriter()
+	w := propstream.NewPropWriter()
 	w.WriteUint8(0x42)
 	w.WriteUint16(0xBEEF)
 	w.WriteUint32(0xDEADBEEF)
 	w.WriteString("Hello")
 
-	r := iomap.NewPropStream(w.Bytes())
+	r := propstream.NewPropStream(w.Bytes())
 
 	gotU8, err := r.ReadUint8()
 	if err != nil {
@@ -61,7 +61,7 @@ func TestPropStreamReadWriteRoundTrip(t *testing.T) {
 func TestPropStreamReadBeyondEnd(t *testing.T) {
 	t.Parallel()
 
-	r := iomap.NewPropStream([]byte{0x01}) // only 1 byte
+	r := propstream.NewPropStream([]byte{0x01}) // only 1 byte
 
 	// First read should succeed
 	_, err := r.ReadUint8()
@@ -76,14 +76,14 @@ func TestPropStreamReadBeyondEnd(t *testing.T) {
 	}
 
 	// ReadUint16 on empty stream
-	r2 := iomap.NewPropStream([]byte{})
+	r2 := propstream.NewPropStream([]byte{})
 	_, err = r2.ReadUint16()
 	if err == nil {
 		t.Error("expected error on ReadUint16 from empty stream, got nil")
 	}
 
 	// ReadUint32 on short stream
-	r3 := iomap.NewPropStream([]byte{0x01, 0x02})
+	r3 := propstream.NewPropStream([]byte{0x01, 0x02})
 	_, err = r3.ReadUint32()
 	if err == nil {
 		t.Error("expected error on ReadUint32 from short stream, got nil")
@@ -95,7 +95,7 @@ func TestPropStreamReadBeyondEnd(t *testing.T) {
 func TestPropStreamReadBytesOutOfBounds(t *testing.T) {
 	t.Parallel()
 
-	r := iomap.NewPropStream([]byte{0x01, 0x02, 0x03})
+	r := propstream.NewPropStream([]byte{0x01, 0x02, 0x03})
 
 	_, err := r.ReadBytes(10)
 	if err == nil {
@@ -107,10 +107,10 @@ func TestPropStreamReadBytesOutOfBounds(t *testing.T) {
 func TestPropStreamEmptyString(t *testing.T) {
 	t.Parallel()
 
-	w := iomap.NewPropWriter()
+	w := propstream.NewPropWriter()
 	w.WriteString("")
 
-	r := iomap.NewPropStream(w.Bytes())
+	r := propstream.NewPropStream(w.Bytes())
 	got, err := r.ReadString()
 	if err != nil {
 		t.Fatalf("ReadString: %v", err)
@@ -131,10 +131,10 @@ func TestPropStreamLargeString(t *testing.T) {
 	}
 	s := string(data)
 
-	w := iomap.NewPropWriter()
+	w := propstream.NewPropWriter()
 	w.WriteString(s)
 
-	r := iomap.NewPropStream(w.Bytes())
+	r := propstream.NewPropStream(w.Bytes())
 	got, err := r.ReadString()
 	if err != nil {
 		t.Fatalf("ReadString: %v", err)
@@ -155,7 +155,7 @@ func TestPropStreamStringLengthOutOfBounds(t *testing.T) {
 		0x41, 0x42, // only 2 bytes of data
 	}
 
-	r := iomap.NewPropStream(buf)
+	r := propstream.NewPropStream(buf)
 	_, err := r.ReadString()
 	if err == nil {
 		t.Error("expected error on ReadString with length exceeding buffer, got nil")
@@ -181,10 +181,10 @@ func TestPropStreamInt32RoundTrip(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			w := iomap.NewPropWriter()
+			w := propstream.NewPropWriter()
 			w.WriteInt32(tc.val)
 
-			r := iomap.NewPropStream(w.Bytes())
+			r := propstream.NewPropStream(w.Bytes())
 			got, err := r.ReadInt32()
 			if err != nil {
 				t.Fatalf("ReadInt32: %v", err)
@@ -214,10 +214,10 @@ func TestPropStreamInt64RoundTrip(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			w := iomap.NewPropWriter()
+			w := propstream.NewPropWriter()
 			w.WriteInt64(tc.val)
 
-			r := iomap.NewPropStream(w.Bytes())
+			r := propstream.NewPropStream(w.Bytes())
 			got, err := r.ReadInt64()
 			if err != nil {
 				t.Fatalf("ReadInt64: %v", err)
@@ -233,12 +233,12 @@ func TestPropStreamInt64RoundTrip(t *testing.T) {
 func TestPropStreamSkip(t *testing.T) {
 	t.Parallel()
 
-	w := iomap.NewPropWriter()
+	w := propstream.NewPropWriter()
 	w.WriteUint8(0xAA)
 	w.WriteUint16(0xBBBB)
 	w.WriteUint8(0xCC)
 
-	r := iomap.NewPropStream(w.Bytes())
+	r := propstream.NewPropStream(w.Bytes())
 
 	// Skip the uint8 + uint16 (3 bytes)
 	if err := r.Skip(3); err != nil {
@@ -259,7 +259,7 @@ func TestPropStreamSkip(t *testing.T) {
 func TestPropStreamSkipOutOfBounds(t *testing.T) {
 	t.Parallel()
 
-	r := iomap.NewPropStream([]byte{0x01, 0x02})
+	r := propstream.NewPropStream([]byte{0x01, 0x02})
 	if err := r.Skip(10); err == nil {
 		t.Error("expected error on Skip(10) from 2-byte stream, got nil")
 	}
@@ -269,7 +269,7 @@ func TestPropStreamSkipOutOfBounds(t *testing.T) {
 func TestPropWriterBytes(t *testing.T) {
 	t.Parallel()
 
-	w := iomap.NewPropWriter()
+	w := propstream.NewPropWriter()
 	if len(w.Bytes()) != 0 {
 		t.Errorf("empty writer Bytes() length = %d, want 0", len(w.Bytes()))
 	}

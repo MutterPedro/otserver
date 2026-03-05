@@ -1,11 +1,11 @@
-package iomap_test
+package otbm_test
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/MutterPedro/otserver/internal/iomap"
+	"github.com/MutterPedro/otserver/pkg/otbm"
 )
 
 // TestAcceptanceLoadForgottenOTBM loads the real forgotten.otbm file from the
@@ -19,7 +19,7 @@ func TestAcceptanceLoadForgottenOTBM(t *testing.T) {
 		t.Skipf("skipping acceptance test: %v (place forgotten.otbm at data/world/forgotten.otbm)", err)
 	}
 
-	m, err := iomap.LoadMap(data)
+	m, err := otbm.LoadMap(data)
 	if err != nil {
 		t.Fatalf("LoadMap forgotten.otbm: %v", err)
 	}

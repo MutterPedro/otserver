@@ -1,10 +1,11 @@
-// Package iomap implements the OTBM map file format parser.
-package iomap
+// Package otbm implements the OTBM map file format parser.
+package otbm
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
+
+	"github.com/MutterPedro/otserver/pkg/propstream"
 )
 
 // Control bytes for OTBM node tree encoding.
@@ -116,12 +117,12 @@ type node struct {
 // a tree of nodes, handling escape bytes and NODE_START/NODE_END markers.
 func parseNodes(data []byte) (*node, error) {
 	if len(data) == 0 {
-		return nil, errors.New("iomap: empty node data")
+		return nil, errors.New("otbm: empty node data")
 	}
 
 	pos := 0
 	if data[pos] != nodeStartByte {
-		return nil, errors.New("iomap: expected NODE_START at beginning of node tree")
+		return nil, errors.New("otbm: expected NODE_START at beginning of node tree")
 	}
 	pos++
 
@@ -132,7 +133,7 @@ func parseNodes(data []byte) (*node, error) {
 	pos = newPos
 
 	if pos != len(data) {
-		return nil, fmt.Errorf("iomap: trailing data after root node (%d extra bytes)", len(data)-pos)
+		return nil, fmt.Errorf("otbm: trailing data after root node (%d extra bytes)", len(data)-pos)
 	}
 
 	return root, nil
@@ -142,7 +143,7 @@ func parseNodes(data []byte) (*node, error) {
 // consumed the NODE_START byte. pos points to the node type byte.
 func readNode(data []byte, pos int) (*node, int, error) {
 	if pos >= len(data) {
-		return nil, 0, errors.New("iomap: unexpected end of data reading node type")
+		return nil, 0, errors.New("otbm: unexpected end of data reading node type")
 	}
 
 	n := &node{nodeType: data[pos]}
@@ -165,7 +166,7 @@ func readNode(data []byte, pos int) (*node, int, error) {
 		case escapeByte:
 			pos++
 			if pos >= len(data) {
-				return nil, 0, errors.New("iomap: dangling escape byte at end of data")
+				return nil, 0, errors.New("otbm: dangling escape byte at end of data")
 			}
 			n.props = append(n.props, data[pos])
 			pos++
@@ -175,13 +176,13 @@ func readNode(data []byte, pos int) (*node, int, error) {
 		}
 	}
 
-	return nil, 0, errors.New("iomap: unexpected end of data, missing NODE_END")
+	return nil, 0, errors.New("otbm: unexpected end of data, missing NODE_END")
 }
 
 // LoadMap parses an OTBM binary file and returns a Map.
 func LoadMap(data []byte) (*Map, error) {
 	if len(data) < 4 {
-		return nil, errors.New("iomap: data too short for file identifier")
+		return nil, errors.New("otbm: data too short for file identifier")
 	}
 
 	root, err := parseNodes(data[4:])
@@ -190,20 +191,27 @@ func LoadMap(data []byte) (*Map, error) {
 	}
 
 	if root.nodeType != otbmMapHeader {
-		return nil, fmt.Errorf("iomap: expected OTBM_MAP_HEADER (0x%02X), got 0x%02X", otbmMapHeader, root.nodeType)
+		return nil, fmt.Errorf("otbm: expected OTBM_MAP_HEADER (0x%02X), got 0x%02X", otbmMapHeader, root.nodeType)
 	}
 
 	// Parse root header: version(4) + width(2) + height(2) + majorItems(4) + minorItems(4) = 16 bytes
-	if len(root.props) < 16 {
-		return nil, fmt.Errorf("iomap: map header too short: got %d bytes, need 16", len(root.props))
+	ps := propstream.NewPropStream(root.props)
+	if err := ps.Skip(4); err != nil { // skip version
+		return nil, fmt.Errorf("otbm: map header too short: %w", err)
 	}
 
 	m := &Map{
 		Tiles: make(map[Position]*Tile),
 	}
 
-	m.Width = binary.LittleEndian.Uint16(root.props[4:6])
-	m.Height = binary.LittleEndian.Uint16(root.props[6:8])
+	m.Width, err = ps.ReadUint16()
+	if err != nil {
+		return nil, fmt.Errorf("otbm: reading map width: %w", err)
+	}
+	m.Height, err = ps.ReadUint16()
+	if err != nil {
+		return nil, fmt.Errorf("otbm: reading map height: %w", err)
+	}
 
 	// Find the OTBM_MAP_DATA child node.
 	var mapDataNode *node
@@ -246,23 +254,19 @@ func LoadMap(data []byte) (*Map, error) {
 
 // parseMapDataAttrs parses sequential attributes from the OTBM_MAP_DATA node props.
 func parseMapDataAttrs(props []byte, m *Map) error {
-	pos := 0
-	for pos < len(props) {
-		attrType := props[pos]
-		pos++
+	ps := propstream.NewPropStream(props)
+	for ps.Remaining() > 0 {
+		attrType, err := ps.ReadUint8()
+		if err != nil {
+			return fmt.Errorf("otbm: reading map data attr type: %w", err)
+		}
 
 		switch attrType {
 		case attrDescription, attrExtFile, attrSpawnFile, attrHouseFile:
-			if pos+2 > len(props) {
-				return errors.New("iomap: truncated attribute string length")
+			str, err := ps.ReadString()
+			if err != nil {
+				return fmt.Errorf("otbm: reading map data attr string: %w", err)
 			}
-			strLen := int(binary.LittleEndian.Uint16(props[pos : pos+2]))
-			pos += 2
-			if pos+strLen > len(props) {
-				return errors.New("iomap: truncated attribute string data")
-			}
-			str := string(props[pos : pos+strLen])
-			pos += strLen
 
 			switch attrType {
 			case attrSpawnFile:
@@ -280,13 +284,20 @@ func parseMapDataAttrs(props []byte, m *Map) error {
 
 // parseTileArea parses an OTBM_TILE_AREA node and its tile children.
 func parseTileArea(n *node, m *Map) error {
-	if len(n.props) < 5 {
-		return fmt.Errorf("iomap: tile area props too short: got %d bytes, need 5", len(n.props))
-	}
+	ps := propstream.NewPropStream(n.props)
 
-	baseX := binary.LittleEndian.Uint16(n.props[0:2])
-	baseY := binary.LittleEndian.Uint16(n.props[2:4])
-	baseZ := n.props[4]
+	baseX, err := ps.ReadUint16()
+	if err != nil {
+		return fmt.Errorf("otbm: reading tile area base X: %w", err)
+	}
+	baseY, err := ps.ReadUint16()
+	if err != nil {
+		return fmt.Errorf("otbm: reading tile area base Y: %w", err)
+	}
+	baseZ, err := ps.ReadUint8()
+	if err != nil {
+		return fmt.Errorf("otbm: reading tile area base Z: %w", err)
+	}
 
 	for _, child := range n.children {
 		switch child.nodeType {
@@ -310,52 +321,52 @@ func parseTileArea(n *node, m *Map) error {
 
 // parseTile parses an OTBM_TILE node.
 func parseTile(n *node, baseX, baseY uint16, baseZ uint8, houseID uint32) (*Tile, error) {
-	if len(n.props) < 2 {
-		return nil, fmt.Errorf("iomap: tile props too short: got %d bytes, need at least 2", len(n.props))
-	}
+	ps := propstream.NewPropStream(n.props)
 
-	offsetX := uint16(n.props[0])
-	offsetY := uint16(n.props[1])
+	offsetX, err := ps.ReadUint8()
+	if err != nil {
+		return nil, fmt.Errorf("otbm: reading tile offset X: %w", err)
+	}
+	offsetY, err := ps.ReadUint8()
+	if err != nil {
+		return nil, fmt.Errorf("otbm: reading tile offset Y: %w", err)
+	}
 
 	tile := &Tile{
 		Position: Position{
-			X: baseX + offsetX,
-			Y: baseY + offsetY,
+			X: baseX + uint16(offsetX),
+			Y: baseY + uint16(offsetY),
 			Z: baseZ,
 		},
 		HouseID: houseID,
 	}
 
 	// Parse tile attributes from remaining props.
-	pos := 2
-	for pos < len(n.props) {
-		attrType := n.props[pos]
-		pos++
+	for ps.Remaining() > 0 {
+		attrType, err := ps.ReadUint8()
+		if err != nil {
+			return nil, fmt.Errorf("otbm: reading tile attr type: %w", err)
+		}
 
 		switch attrType {
 		case attrTileFlags:
-			if pos+4 > len(n.props) {
-				return nil, errors.New("iomap: truncated tile flags")
-			}
-			tile.Flags = binary.LittleEndian.Uint32(n.props[pos : pos+4])
-			pos += 4
-		case attrItem:
-			// Inline item in tile props: item ID (uint16) followed by item attributes.
-			if pos+2 > len(n.props) {
-				return nil, errors.New("iomap: truncated inline item ID")
-			}
-			itemID := binary.LittleEndian.Uint16(n.props[pos : pos+2])
-			pos += 2
-			item := RawItem{ID: itemID}
-			var err error
-			pos, err = parseItemAttrs(n.props, pos, &item)
+			tile.Flags, err = ps.ReadUint32()
 			if err != nil {
+				return nil, fmt.Errorf("otbm: reading tile flags: %w", err)
+			}
+		case attrItem:
+			itemID, err := ps.ReadUint16()
+			if err != nil {
+				return nil, fmt.Errorf("otbm: reading inline item ID: %w", err)
+			}
+			item := RawItem{ID: itemID}
+			if err := parseItemAttrs(ps, &item); err != nil {
 				return nil, err
 			}
 			tile.Items = append(tile.Items, item)
 		default:
 			// Unknown attribute with no length prefix; stop parsing props.
-			pos = len(n.props)
+			return tile, nil
 		}
 	}
 
@@ -376,24 +387,30 @@ func parseTile(n *node, baseX, baseY uint16, baseZ uint8, houseID uint32) (*Tile
 // parseHouseTile parses an OTBM_HOUSETILE node.
 func parseHouseTile(n *node, baseX, baseY uint16, baseZ uint8) (*Tile, error) {
 	if len(n.props) < 6 {
-		return nil, fmt.Errorf("iomap: house tile props too short: got %d bytes, need at least 6", len(n.props))
+		return nil, fmt.Errorf("otbm: house tile props too short: got %d bytes, need at least 6", len(n.props))
 	}
 
-	houseID := binary.LittleEndian.Uint32(n.props[2:6])
+	// House ID is at offset 2 (after the two offset bytes that parseTile will read).
+	ps := propstream.NewPropStream(n.props[2:])
+	houseID, err := ps.ReadUint32()
+	if err != nil {
+		return nil, fmt.Errorf("otbm: reading house ID: %w", err)
+	}
 	return parseTile(n, baseX, baseY, baseZ, houseID)
 }
 
 // parseItem parses an OTBM_ITEM node into a RawItem.
 func parseItem(n *node) (RawItem, error) {
-	if len(n.props) < 2 {
-		return RawItem{}, fmt.Errorf("iomap: item props too short: got %d bytes, need at least 2", len(n.props))
+	ps := propstream.NewPropStream(n.props)
+
+	id, err := ps.ReadUint16()
+	if err != nil {
+		return RawItem{}, fmt.Errorf("otbm: reading item ID: %w", err)
 	}
 
-	item := RawItem{
-		ID: binary.LittleEndian.Uint16(n.props[0:2]),
-	}
+	item := RawItem{ID: id}
 
-	if _, err := parseItemAttrs(n.props, 2, &item); err != nil {
+	if err := parseItemAttrs(ps, &item); err != nil {
 		return RawItem{}, err
 	}
 
@@ -411,74 +428,62 @@ func parseItem(n *node) (RawItem, error) {
 	return item, nil
 }
 
-// parseItemAttrs parses item attributes from props starting at pos.
+// parseItemAttrs parses item attributes from the PropStream.
 // Item attributes have no per-attribute length prefix, so every type that
 // appears in the binary must be handled to keep the stream aligned.
-// Returns the new position after parsing.
-func parseItemAttrs(props []byte, pos int, item *RawItem) (int, error) {
-	for pos < len(props) {
-		attrType := props[pos]
-		pos++
+func parseItemAttrs(ps *propstream.PropStream, item *RawItem) error {
+	for ps.Remaining() > 0 {
+		attrType, err := ps.ReadUint8()
+		if err != nil {
+			return fmt.Errorf("otbm: reading item attr type: %w", err)
+		}
 
 		switch attrType {
 		case attrCount, attrRuneCharges:
-			if pos+1 > len(props) {
-				return 0, errors.New("iomap: truncated item count/rune charges")
+			item.Count, err = ps.ReadUint8()
+			if err != nil {
+				return fmt.Errorf("otbm: reading item count: %w", err)
 			}
-			item.Count = props[pos]
-			pos++
 		case attrActionID:
-			if pos+2 > len(props) {
-				return 0, errors.New("iomap: truncated item action ID")
+			item.ActionID, err = ps.ReadUint16()
+			if err != nil {
+				return fmt.Errorf("otbm: reading item action ID: %w", err)
 			}
-			item.ActionID = binary.LittleEndian.Uint16(props[pos : pos+2])
-			pos += 2
 		case attrUniqueID:
-			if pos+2 > len(props) {
-				return 0, errors.New("iomap: truncated item unique ID")
+			item.UniqueID, err = ps.ReadUint16()
+			if err != nil {
+				return fmt.Errorf("otbm: reading item unique ID: %w", err)
 			}
-			item.UniqueID = binary.LittleEndian.Uint16(props[pos : pos+2])
-			pos += 2
 		case attrText, attrDesc, attrWrittenBy:
-			if pos+2 > len(props) {
-				return 0, errors.New("iomap: truncated item string length")
-			}
-			strLen := int(binary.LittleEndian.Uint16(props[pos : pos+2]))
-			pos += 2
-			if pos+strLen > len(props) {
-				return 0, errors.New("iomap: truncated item string data")
+			str, err := ps.ReadString()
+			if err != nil {
+				return fmt.Errorf("otbm: reading item string attr: %w", err)
 			}
 			if attrType == attrText {
-				item.Text = string(props[pos : pos+strLen])
+				item.Text = str
 			}
-			pos += strLen
 		case attrTeleDest:
-			// x(2) + y(2) + z(1) = 5 bytes
-			if pos+5 > len(props) {
-				return 0, errors.New("iomap: truncated teleport destination")
+			if err := ps.Skip(5); err != nil { // x(2) + y(2) + z(1)
+				return fmt.Errorf("otbm: skipping teleport destination: %w", err)
 			}
-			pos += 5
 		case attrDepotID, attrCharges:
-			if pos+2 > len(props) {
-				return 0, errors.New("iomap: truncated item uint16 attr")
+			if err := ps.Skip(2); err != nil {
+				return fmt.Errorf("otbm: skipping uint16 attr: %w", err)
 			}
-			pos += 2
 		case attrHouseDoorID, attrDecayingState:
-			if pos+1 > len(props) {
-				return 0, errors.New("iomap: truncated item uint8 attr")
+			if err := ps.Skip(1); err != nil {
+				return fmt.Errorf("otbm: skipping uint8 attr: %w", err)
 			}
-			pos++
 		case attrDuration, attrWrittenDate, attrSleeperGUID, attrSleepStart:
-			if pos+4 > len(props) {
-				return 0, errors.New("iomap: truncated item uint32 attr")
+			if err := ps.Skip(4); err != nil {
+				return fmt.Errorf("otbm: skipping uint32 attr: %w", err)
 			}
-			pos += 4
 		default:
 			// Unknown attribute with no length prefix; stop parsing.
-			return len(props), nil
+			return nil
 		}
 	}
-	return pos, nil
+	return nil
 }
 
 // parseTowns parses the OTBM_TOWNS container node and its OTBM_TOWN children.
@@ -501,34 +506,34 @@ func parseTowns(n *node, m *Map) error {
 func parseTown(n *node) (Town, error) {
 	// Props: id(4) + namelen(2) + name(namelen) + templeX(2) + templeY(2) + templeZ(1)
 	if len(n.props) < 4 {
-		return Town{}, errors.New("iomap: town props too short for ID")
+		return Town{}, errors.New("otbm: town props too short for ID")
 	}
 
-	ps := NewPropStream(n.props)
+	ps := propstream.NewPropStream(n.props)
 
 	id, err := ps.ReadUint32()
 	if err != nil {
-		return Town{}, fmt.Errorf("iomap: reading town ID: %w", err)
+		return Town{}, fmt.Errorf("otbm: reading town ID: %w", err)
 	}
 
 	name, err := ps.ReadString()
 	if err != nil {
-		return Town{}, fmt.Errorf("iomap: reading town name: %w", err)
+		return Town{}, fmt.Errorf("otbm: reading town name: %w", err)
 	}
 
 	templeX, err := ps.ReadUint16()
 	if err != nil {
-		return Town{}, fmt.Errorf("iomap: reading town temple X: %w", err)
+		return Town{}, fmt.Errorf("otbm: reading town temple X: %w", err)
 	}
 
 	templeY, err := ps.ReadUint16()
 	if err != nil {
-		return Town{}, fmt.Errorf("iomap: reading town temple Y: %w", err)
+		return Town{}, fmt.Errorf("otbm: reading town temple Y: %w", err)
 	}
 
 	templeZ, err := ps.ReadUint8()
 	if err != nil {
-		return Town{}, fmt.Errorf("iomap: reading town temple Z: %w", err)
+		return Town{}, fmt.Errorf("otbm: reading town temple Z: %w", err)
 	}
 
 	return Town{
@@ -561,26 +566,26 @@ func parseWaypoints(n *node, m *Map) error {
 // parseWaypointNode parses a single OTBM_WAYPOINT node.
 func parseWaypointNode(n *node) (Waypoint, error) {
 	// Props: namelen(2) + name(namelen) + x(2) + y(2) + z(1)
-	ps := NewPropStream(n.props)
+	ps := propstream.NewPropStream(n.props)
 
 	name, err := ps.ReadString()
 	if err != nil {
-		return Waypoint{}, fmt.Errorf("iomap: reading waypoint name: %w", err)
+		return Waypoint{}, fmt.Errorf("otbm: reading waypoint name: %w", err)
 	}
 
 	x, err := ps.ReadUint16()
 	if err != nil {
-		return Waypoint{}, fmt.Errorf("iomap: reading waypoint X: %w", err)
+		return Waypoint{}, fmt.Errorf("otbm: reading waypoint X: %w", err)
 	}
 
 	y, err := ps.ReadUint16()
 	if err != nil {
-		return Waypoint{}, fmt.Errorf("iomap: reading waypoint Y: %w", err)
+		return Waypoint{}, fmt.Errorf("otbm: reading waypoint Y: %w", err)
 	}
 
 	z, err := ps.ReadUint8()
 	if err != nil {
-		return Waypoint{}, fmt.Errorf("iomap: reading waypoint Z: %w", err)
+		return Waypoint{}, fmt.Errorf("otbm: reading waypoint Z: %w", err)
 	}
 
 	return Waypoint{

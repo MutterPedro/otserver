@@ -1,10 +1,10 @@
-package iomap_test
+package otbm_test
 
 import (
 	"encoding/binary"
 	"testing"
 
-	"github.com/MutterPedro/otserver/internal/iomap"
+	"github.com/MutterPedro/otserver/pkg/otbm"
 )
 
 // OTBM node types (values match C++ enum in iomap.h)
@@ -237,7 +237,7 @@ func TestOTBMParseTileArea(t *testing.T) {
 		nil, nil, "", "",
 	)
 
-	m, err := iomap.LoadMap(data)
+	m, err := otbm.LoadMap(data)
 	if err != nil {
 		t.Fatalf("LoadMap: %v", err)
 	}
@@ -247,7 +247,7 @@ func TestOTBMParseTileArea(t *testing.T) {
 	}
 
 	// Check first tile position: base(100,200,7) + offset(0,0)
-	tile1, ok := m.Tiles[iomap.Position{X: 100, Y: 200, Z: 7}]
+	tile1, ok := m.Tiles[otbm.Position{X: 100, Y: 200, Z: 7}]
 	if !ok {
 		t.Error("tile at (100,200,7) not found")
 	} else if tile1.Position.X != 100 || tile1.Position.Y != 200 || tile1.Position.Z != 7 {
@@ -255,7 +255,7 @@ func TestOTBMParseTileArea(t *testing.T) {
 	}
 
 	// Check second tile position: base(100,200,7) + offset(3,5)
-	tile2, ok := m.Tiles[iomap.Position{X: 103, Y: 205, Z: 7}]
+	tile2, ok := m.Tiles[otbm.Position{X: 103, Y: 205, Z: 7}]
 	if !ok {
 		t.Error("tile at (103,205,7) not found")
 	} else if tile2.Position.X != 103 || tile2.Position.Y != 205 || tile2.Position.Z != 7 {
@@ -282,12 +282,12 @@ func TestOTBMParseTileWithItem(t *testing.T) {
 		nil, nil, "", "",
 	)
 
-	m, err := iomap.LoadMap(data)
+	m, err := otbm.LoadMap(data)
 	if err != nil {
 		t.Fatalf("LoadMap: %v", err)
 	}
 
-	tile, ok := m.Tiles[iomap.Position{X: 51, Y: 52, Z: 7}]
+	tile, ok := m.Tiles[otbm.Position{X: 51, Y: 52, Z: 7}]
 	if !ok {
 		t.Fatal("tile at (51,52,7) not found")
 	}
@@ -313,7 +313,7 @@ func TestOTBMParseTown(t *testing.T) {
 		nil, "", "",
 	)
 
-	m, err := iomap.LoadMap(data)
+	m, err := otbm.LoadMap(data)
 	if err != nil {
 		t.Fatalf("LoadMap: %v", err)
 	}
@@ -349,12 +349,12 @@ func TestOTBMHouseTile(t *testing.T) {
 		nil, nil, "", "",
 	)
 
-	m, err := iomap.LoadMap(data)
+	m, err := otbm.LoadMap(data)
 	if err != nil {
 		t.Fatalf("LoadMap: %v", err)
 	}
 
-	tile, ok := m.Tiles[iomap.Position{X: 300, Y: 400, Z: 7}]
+	tile, ok := m.Tiles[otbm.Position{X: 300, Y: 400, Z: 7}]
 	if !ok {
 		t.Fatal("tile at (300,400,7) not found")
 	}
@@ -385,7 +385,7 @@ func TestOTBMTruncated(t *testing.T) {
 			continue
 		}
 		truncated := data[:cut]
-		_, err := iomap.LoadMap(truncated)
+		_, err := otbm.LoadMap(truncated)
 		if err == nil {
 			t.Errorf("expected error for data truncated at %d bytes, got nil", cut)
 		}
@@ -396,12 +396,12 @@ func TestOTBMTruncated(t *testing.T) {
 func TestOTBMEmptyFile(t *testing.T) {
 	t.Parallel()
 
-	_, err := iomap.LoadMap([]byte{})
+	_, err := otbm.LoadMap([]byte{})
 	if err == nil {
 		t.Error("expected error for empty file, got nil")
 	}
 
-	_, err = iomap.LoadMap(nil)
+	_, err = otbm.LoadMap(nil)
 	if err == nil {
 		t.Error("expected error for nil input, got nil")
 	}
@@ -413,7 +413,7 @@ func TestOTBMSpawnAndHouseFiles(t *testing.T) {
 
 	data := buildOTBMFile(nil, nil, nil, "spawns.xml", "houses.xml")
 
-	m, err := iomap.LoadMap(data)
+	m, err := otbm.LoadMap(data)
 	if err != nil {
 		t.Fatalf("LoadMap: %v", err)
 	}
@@ -439,7 +439,7 @@ func TestOTBMParseWaypoints(t *testing.T) {
 		"", "",
 	)
 
-	m, err := iomap.LoadMap(data)
+	m, err := otbm.LoadMap(data)
 	if err != nil {
 		t.Fatalf("LoadMap: %v", err)
 	}
@@ -509,14 +509,14 @@ func TestOTBMMaxDepth(t *testing.T) {
 	buf = append(buf, nodeEnd) // root
 
 	// This should not panic with a stack overflow
-	m, err := iomap.LoadMap(buf)
+	m, err := otbm.LoadMap(buf)
 	if err != nil {
 		// An error is acceptable (if we add a max depth limit)
 		return
 	}
 
 	// If no error, verify the tile exists
-	tile, ok := m.Tiles[iomap.Position{X: 100, Y: 100, Z: 7}]
+	tile, ok := m.Tiles[otbm.Position{X: 100, Y: 100, Z: 7}]
 	if !ok {
 		t.Fatal("tile at (100,100,7) not found")
 	}
@@ -558,7 +558,7 @@ func TestOTBMMultipleTileAreas(t *testing.T) {
 		nil, nil, "", "",
 	)
 
-	m, err := iomap.LoadMap(data)
+	m, err := otbm.LoadMap(data)
 	if err != nil {
 		t.Fatalf("LoadMap: %v", err)
 	}
@@ -567,10 +567,10 @@ func TestOTBMMultipleTileAreas(t *testing.T) {
 		t.Errorf("len(Tiles) = %d, want 2", len(m.Tiles))
 	}
 
-	if _, ok := m.Tiles[iomap.Position{X: 100, Y: 100, Z: 7}]; !ok {
+	if _, ok := m.Tiles[otbm.Position{X: 100, Y: 100, Z: 7}]; !ok {
 		t.Error("tile from first area not found at (100,100,7)")
 	}
-	if _, ok := m.Tiles[iomap.Position{X: 201, Y: 201, Z: 6}]; !ok {
+	if _, ok := m.Tiles[otbm.Position{X: 201, Y: 201, Z: 6}]; !ok {
 		t.Error("tile from second area not found at (201,201,6)")
 	}
 }
@@ -581,7 +581,7 @@ func TestOTBMMapDimensions(t *testing.T) {
 
 	data := buildOTBMFile(nil, nil, nil, "", "")
 
-	m, err := iomap.LoadMap(data)
+	m, err := otbm.LoadMap(data)
 	if err != nil {
 		t.Fatalf("LoadMap: %v", err)
 	}

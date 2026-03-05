@@ -1,11 +1,13 @@
-package iomap
+// Package propstream provides lightweight binary serialization utilities
+// for reading and writing little-endian encoded data streams.
+package propstream
 
 import (
 	"encoding/binary"
 	"errors"
 )
 
-var errReadPastEnd = errors.New("iomap: read past end of buffer")
+var errReadPastEnd = errors.New("propstream: read past end of buffer")
 
 // PropWriter serializes values into a byte buffer using little-endian encoding.
 type PropWriter struct {

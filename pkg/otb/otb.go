@@ -2,9 +2,10 @@
 package otb
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
+
+	"github.com/MutterPedro/otserver/pkg/propstream"
 )
 
 const (
@@ -181,70 +182,69 @@ func parseItemNode(n *node) (*ItemType, error) {
 		Group: ItemGroup(n.nodeType),
 	}
 
-	props := n.props
+	ps := propstream.NewPropStream(n.props)
 
 	// Item props start with: flags(4), then attributes follow.
-	// ClientID comes from ATTR_CLIENTID in the attribute stream, not the fixed header.
-	if len(props) < 4 {
-		return nil, fmt.Errorf("otb: item node props too short: got %d bytes, need at least 4", len(props))
+	if err := ps.Skip(4); err != nil {
+		return nil, fmt.Errorf("otb: item node props too short: %w", err)
 	}
 
-	// Skip flags (4 bytes).
-	pos := 4
-
-	// Parse attributes.
-	for pos < len(props) {
-		if pos+3 > len(props) {
-			return nil, errors.New("otb: item attribute header truncated")
+	// Parse attributes: each is type(1) + length(2) + data(length).
+	for ps.Remaining() > 0 {
+		attrType, err := ps.ReadUint8()
+		if err != nil {
+			return nil, fmt.Errorf("otb: reading item attr type: %w", err)
 		}
 
-		attrType := props[pos]
-		pos++
-
-		attrLen := int(binary.LittleEndian.Uint16(props[pos : pos+2]))
-		pos += 2
-
-		if pos+attrLen > len(props) {
-			return nil, fmt.Errorf("otb: attribute length %d exceeds remaining data (%d bytes)", attrLen, len(props)-pos)
+		attrLen, err := ps.ReadUint16()
+		if err != nil {
+			return nil, fmt.Errorf("otb: reading item attr length: %w", err)
 		}
 
-		attrData := props[pos : pos+attrLen]
-		pos += attrLen
+		attrData, err := ps.ReadBytes(int(attrLen))
+		if err != nil {
+			return nil, fmt.Errorf("otb: attribute length %d exceeds remaining data: %w", attrLen, err)
+		}
 
-		switch uint8(attrType) {
+		ads := propstream.NewPropStream(attrData)
+
+		switch attrType {
 		case attrServerID:
-			if len(attrData) < 2 {
-				return nil, errors.New("otb: ATTR_SERVERID data too short")
+			item.ServerID, err = ads.ReadUint16()
+			if err != nil {
+				return nil, fmt.Errorf("otb: reading ATTR_SERVERID: %w", err)
 			}
-			item.ServerID = binary.LittleEndian.Uint16(attrData[:2])
 		case attrClientID:
-			if len(attrData) < 2 {
-				return nil, errors.New("otb: ATTR_CLIENTID data too short")
+			item.ClientID, err = ads.ReadUint16()
+			if err != nil {
+				return nil, fmt.Errorf("otb: reading ATTR_CLIENTID: %w", err)
 			}
-			item.ClientID = binary.LittleEndian.Uint16(attrData[:2])
 		case attrName:
 			item.Name = string(attrData)
 		case attrSpeed:
-			if len(attrData) < 2 {
-				return nil, errors.New("otb: ATTR_SPEED data too short")
+			item.Speed, err = ads.ReadUint16()
+			if err != nil {
+				return nil, fmt.Errorf("otb: reading ATTR_SPEED: %w", err)
 			}
-			item.Speed = binary.LittleEndian.Uint16(attrData[:2])
 		case attrWeight:
-			if len(attrData) < 4 {
-				return nil, errors.New("otb: ATTR_WEIGHT data too short")
+			item.Weight, err = ads.ReadUint32()
+			if err != nil {
+				return nil, fmt.Errorf("otb: reading ATTR_WEIGHT: %w", err)
 			}
-			item.Weight = binary.LittleEndian.Uint32(attrData[:4])
 		case attrArmor:
-			if len(attrData) < 2 {
-				return nil, errors.New("otb: ATTR_ARMOR data too short")
+			item.Armor, err = ads.ReadUint16()
+			if err != nil {
+				return nil, fmt.Errorf("otb: reading ATTR_ARMOR: %w", err)
 			}
-			item.Armor = binary.LittleEndian.Uint16(attrData[:2])
 		case attrLight2:
-			if len(attrData) < 4 {
-				return nil, errors.New("otb: ATTR_LIGHT2 data too short")
+			item.LightLevel, err = ads.ReadUint16()
+			if err != nil {
+				return nil, fmt.Errorf("otb: reading ATTR_LIGHT2 level: %w", err)
 			}
-			item.LightLevel = binary.LittleEndian.Uint16(attrData[:2])
-			item.LightColor = binary.LittleEndian.Uint16(attrData[2:4])
+			item.LightColor, err = ads.ReadUint16()
+			if err != nil {
+				return nil, fmt.Errorf("otb: reading ATTR_LIGHT2 color: %w", err)
+			}
 		case attrTopOrder:
 			// Parsed but not stored; skip.
 		}
