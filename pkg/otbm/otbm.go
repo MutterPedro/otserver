@@ -10,51 +10,51 @@ import (
 
 // Control bytes for OTBM node tree encoding.
 const (
-	nodeStartByte byte = 0xFE
-	nodeEndByte   byte = 0xFF
-	escapeByte    byte = 0xFD
+	NodeStartByte byte = 0xFE
+	NodeEndByte   byte = 0xFF
+	EscapeByte    byte = 0xFD
 )
 
 // OTBM node types.
 // Values match the C++ enum in iomap.h.
 const (
-	otbmMapHeader byte = 0x00
-	otbmMapData   byte = 0x02
-	otbmTileArea  byte = 0x04
-	otbmTile      byte = 0x05
-	otbmItem      byte = 0x06
-	otbmTowns     byte = 0x0C
-	otbmTown      byte = 0x0D
-	otbmHouseTile byte = 0x0E
-	otbmWaypoints byte = 0x0F
-	otbmWaypoint  byte = 0x10
+	OTBMMapHeader byte = 0x00
+	OTBMMapData   byte = 0x02
+	OTBMTileArea  byte = 0x04
+	OTBMTile      byte = 0x05
+	OTBMItem      byte = 0x06
+	OTBMTowns     byte = 0x0C
+	OTBMTown      byte = 0x0D
+	OTBMHouseTile byte = 0x0E
+	OTBMWaypoints byte = 0x0F
+	OTBMWaypoint  byte = 0x10
 )
 
 // OTBM attribute types.
 // Values match the C++ enums in iomap.h (OTBM_ATTR_*) and item.h (ATTR_*).
 const (
-	attrDescription   byte = 1
-	attrExtFile       byte = 2
-	attrTileFlags     byte = 3
-	attrActionID      byte = 4
-	attrUniqueID      byte = 5
-	attrText          byte = 6
-	attrDesc          byte = 7
-	attrTeleDest      byte = 8
-	attrItem          byte = 9
-	attrDepotID       byte = 10
-	attrSpawnFile     byte = 11
-	attrRuneCharges   byte = 12
-	attrHouseFile     byte = 13
-	attrHouseDoorID   byte = 14
-	attrCount         byte = 15
-	attrDuration      byte = 16
-	attrDecayingState byte = 17
-	attrWrittenDate   byte = 18
-	attrWrittenBy     byte = 19
-	attrSleeperGUID   byte = 20
-	attrSleepStart    byte = 21
-	attrCharges       byte = 22
+	AttrDescription   byte = 1
+	AttrExtFile       byte = 2
+	AttrTileFlags     byte = 3
+	AttrActionID      byte = 4
+	AttrUniqueID      byte = 5
+	AttrText          byte = 6
+	AttrDesc          byte = 7
+	AttrTeleDest      byte = 8
+	AttrItem          byte = 9
+	AttrDepotID       byte = 10
+	AttrSpawnFile     byte = 11
+	AttrRuneCharges   byte = 12
+	AttrHouseFile     byte = 13
+	AttrHouseDoorID   byte = 14
+	AttrCount         byte = 15
+	AttrDuration      byte = 16
+	AttrDecayingState byte = 17
+	AttrWrittenDate   byte = 18
+	AttrWrittenBy     byte = 19
+	AttrSleeperGUID   byte = 20
+	AttrSleepStart    byte = 21
+	AttrCharges       byte = 22
 )
 
 // Position represents a 3D coordinate in the game world.
@@ -121,7 +121,7 @@ func parseNodes(data []byte) (*node, error) {
 	}
 
 	pos := 0
-	if data[pos] != nodeStartByte {
+	if data[pos] != NodeStartByte {
 		return nil, errors.New("otbm: expected NODE_START at beginning of node tree")
 	}
 	pos++
@@ -152,7 +152,7 @@ func readNode(data []byte, pos int) (*node, int, error) {
 	for pos < len(data) {
 		b := data[pos]
 		switch b {
-		case nodeStartByte:
+		case NodeStartByte:
 			pos++
 			child, newPos, err := readNode(data, pos)
 			if err != nil {
@@ -160,10 +160,10 @@ func readNode(data []byte, pos int) (*node, int, error) {
 			}
 			n.children = append(n.children, child)
 			pos = newPos
-		case nodeEndByte:
+		case NodeEndByte:
 			pos++
 			return n, pos, nil
-		case escapeByte:
+		case EscapeByte:
 			pos++
 			if pos >= len(data) {
 				return nil, 0, errors.New("otbm: dangling escape byte at end of data")
@@ -190,8 +190,8 @@ func LoadMap(data []byte) (*Map, error) {
 		return nil, err
 	}
 
-	if root.nodeType != otbmMapHeader {
-		return nil, fmt.Errorf("otbm: expected OTBM_MAP_HEADER (0x%02X), got 0x%02X", otbmMapHeader, root.nodeType)
+	if root.nodeType != OTBMMapHeader {
+		return nil, fmt.Errorf("otbm: expected OTBM_MAP_HEADER (0x%02X), got 0x%02X", OTBMMapHeader, root.nodeType)
 	}
 
 	// Parse root header: version(4) + width(2) + height(2) + majorItems(4) + minorItems(4) = 16 bytes
@@ -216,7 +216,7 @@ func LoadMap(data []byte) (*Map, error) {
 	// Find the OTBM_MAP_DATA child node.
 	var mapDataNode *node
 	for _, child := range root.children {
-		if child.nodeType == otbmMapData {
+		if child.nodeType == OTBMMapData {
 			mapDataNode = child
 			break
 		}
@@ -234,15 +234,15 @@ func LoadMap(data []byte) (*Map, error) {
 	// Process children of OTBM_MAP_DATA.
 	for _, child := range mapDataNode.children {
 		switch child.nodeType {
-		case otbmTileArea:
+		case OTBMTileArea:
 			if err := parseTileArea(child, m); err != nil {
 				return nil, err
 			}
-		case otbmTowns:
+		case OTBMTowns:
 			if err := parseTowns(child, m); err != nil {
 				return nil, err
 			}
-		case otbmWaypoints:
+		case OTBMWaypoints:
 			if err := parseWaypoints(child, m); err != nil {
 				return nil, err
 			}
@@ -262,16 +262,16 @@ func parseMapDataAttrs(props []byte, m *Map) error {
 		}
 
 		switch attrType {
-		case attrDescription, attrExtFile, attrSpawnFile, attrHouseFile:
+		case AttrDescription, AttrExtFile, AttrSpawnFile, AttrHouseFile:
 			str, err := ps.ReadString()
 			if err != nil {
 				return fmt.Errorf("otbm: reading map data attr string: %w", err)
 			}
 
 			switch attrType {
-			case attrSpawnFile:
+			case AttrSpawnFile:
 				m.SpawnFile = str
-			case attrHouseFile:
+			case AttrHouseFile:
 				m.HouseFile = str
 			}
 		default:
@@ -301,13 +301,13 @@ func parseTileArea(n *node, m *Map) error {
 
 	for _, child := range n.children {
 		switch child.nodeType {
-		case otbmTile:
+		case OTBMTile:
 			tile, err := parseTile(child, baseX, baseY, baseZ, 0)
 			if err != nil {
 				return err
 			}
 			m.Tiles[tile.Position] = tile
-		case otbmHouseTile:
+		case OTBMHouseTile:
 			tile, err := parseHouseTile(child, baseX, baseY, baseZ)
 			if err != nil {
 				return err
@@ -349,12 +349,12 @@ func parseTile(n *node, baseX, baseY uint16, baseZ uint8, houseID uint32) (*Tile
 		}
 
 		switch attrType {
-		case attrTileFlags:
+		case AttrTileFlags:
 			tile.Flags, err = ps.ReadUint32()
 			if err != nil {
 				return nil, fmt.Errorf("otbm: reading tile flags: %w", err)
 			}
-		case attrItem:
+		case AttrItem:
 			itemID, err := ps.ReadUint16()
 			if err != nil {
 				return nil, fmt.Errorf("otbm: reading inline item ID: %w", err)
@@ -372,7 +372,7 @@ func parseTile(n *node, baseX, baseY uint16, baseZ uint8, houseID uint32) (*Tile
 
 	// Parse item children.
 	for _, child := range n.children {
-		if child.nodeType == otbmItem {
+		if child.nodeType == OTBMItem {
 			item, err := parseItem(child)
 			if err != nil {
 				return nil, err
@@ -416,7 +416,7 @@ func parseItem(n *node) (RawItem, error) {
 
 	// Parse sub-items from children.
 	for _, child := range n.children {
-		if child.nodeType == otbmItem {
+		if child.nodeType == OTBMItem {
 			subItem, err := parseItem(child)
 			if err != nil {
 				return RawItem{}, err
@@ -439,42 +439,42 @@ func parseItemAttrs(ps *propstream.PropStream, item *RawItem) error {
 		}
 
 		switch attrType {
-		case attrCount, attrRuneCharges:
+		case AttrCount, AttrRuneCharges:
 			item.Count, err = ps.ReadUint8()
 			if err != nil {
 				return fmt.Errorf("otbm: reading item count: %w", err)
 			}
-		case attrActionID:
+		case AttrActionID:
 			item.ActionID, err = ps.ReadUint16()
 			if err != nil {
 				return fmt.Errorf("otbm: reading item action ID: %w", err)
 			}
-		case attrUniqueID:
+		case AttrUniqueID:
 			item.UniqueID, err = ps.ReadUint16()
 			if err != nil {
 				return fmt.Errorf("otbm: reading item unique ID: %w", err)
 			}
-		case attrText, attrDesc, attrWrittenBy:
+		case AttrText, AttrDesc, AttrWrittenBy:
 			str, err := ps.ReadString()
 			if err != nil {
 				return fmt.Errorf("otbm: reading item string attr: %w", err)
 			}
-			if attrType == attrText {
+			if attrType == AttrText {
 				item.Text = str
 			}
-		case attrTeleDest:
+		case AttrTeleDest:
 			if err := ps.Skip(5); err != nil { // x(2) + y(2) + z(1)
 				return fmt.Errorf("otbm: skipping teleport destination: %w", err)
 			}
-		case attrDepotID, attrCharges:
+		case AttrDepotID, AttrCharges:
 			if err := ps.Skip(2); err != nil {
 				return fmt.Errorf("otbm: skipping uint16 attr: %w", err)
 			}
-		case attrHouseDoorID, attrDecayingState:
+		case AttrHouseDoorID, AttrDecayingState:
 			if err := ps.Skip(1); err != nil {
 				return fmt.Errorf("otbm: skipping uint8 attr: %w", err)
 			}
-		case attrDuration, attrWrittenDate, attrSleeperGUID, attrSleepStart:
+		case AttrDuration, AttrWrittenDate, AttrSleeperGUID, AttrSleepStart:
 			if err := ps.Skip(4); err != nil {
 				return fmt.Errorf("otbm: skipping uint32 attr: %w", err)
 			}
@@ -489,7 +489,7 @@ func parseItemAttrs(ps *propstream.PropStream, item *RawItem) error {
 // parseTowns parses the OTBM_TOWNS container node and its OTBM_TOWN children.
 func parseTowns(n *node, m *Map) error {
 	for _, child := range n.children {
-		if child.nodeType != otbmTown {
+		if child.nodeType != OTBMTown {
 			continue
 		}
 
@@ -550,7 +550,7 @@ func parseTown(n *node) (Town, error) {
 // parseWaypoints parses the OTBM_WAYPOINTS container node and its OTBM_WAYPOINT children.
 func parseWaypoints(n *node, m *Map) error {
 	for _, child := range n.children {
-		if child.nodeType != otbmWaypoint {
+		if child.nodeType != OTBMWaypoint {
 			continue
 		}
 

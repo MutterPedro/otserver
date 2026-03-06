@@ -7,45 +7,12 @@ import (
 	"github.com/MutterPedro/otserver/pkg/otbm"
 )
 
-// OTBM node types (values match C++ enum in iomap.h)
-const (
-	otbmMapHeader byte = 0x00
-	otbmMapData   byte = 0x02
-	otbmTileArea  byte = 0x04
-	otbmTile      byte = 0x05
-	otbmItem      byte = 0x06
-	otbmTowns     byte = 0x0C
-	otbmTown      byte = 0x0D
-	otbmHouseTile byte = 0x0E
-	otbmWaypoints byte = 0x0F
-	otbmWaypoint  byte = 0x10
-)
-
-// OTBM attribute types (values match C++ enums in iomap.h and item.h)
-const (
-	otbmAttrDescription byte = 1
-	otbmAttrTileFlags   byte = 3
-	otbmAttrActionID    byte = 4
-	otbmAttrUniqueID    byte = 5
-	otbmAttrText        byte = 6
-	otbmAttrCount       byte = 15
-	otbmAttrSpawnFile   byte = 11
-	otbmAttrHouseFile   byte = 13
-)
-
-// Control bytes
-const (
-	nodeStart  byte = 0xFE
-	nodeEnd    byte = 0xFF
-	escapeChar byte = 0xFD
-)
-
 // escapeBytes applies OTB/OTBM escape encoding.
 func escapeBytes(data []byte) []byte {
 	var out []byte
 	for _, b := range data {
-		if b == escapeChar || b == nodeStart || b == nodeEnd {
-			out = append(out, escapeChar, b)
+		if b == otbm.EscapeByte || b == otbm.NodeStartByte || b == otbm.NodeEndByte {
+			out = append(out, otbm.EscapeByte, b)
 		} else {
 			out = append(out, b)
 		}
@@ -106,7 +73,7 @@ func buildOTBMFile(areas []tileAreaEntry, towns []townEntry, waypoints []waypoin
 	buf = append(buf, 0x00, 0x00, 0x00, 0x00)
 
 	// Root node: OTBM_MAP_HEADER
-	buf = append(buf, nodeStart, otbmMapHeader)
+	buf = append(buf, otbm.NodeStartByte, otbm.OTBMMapHeader)
 
 	// Header props: version(4) + width(2) + height(2) + majorItems(4) + minorItems(4)
 	var headerProps []byte
@@ -118,19 +85,19 @@ func buildOTBMFile(areas []tileAreaEntry, towns []townEntry, waypoints []waypoin
 	buf = append(buf, escapeBytes(headerProps)...)
 
 	// OTBM_MAP_DATA child
-	buf = append(buf, nodeStart, otbmMapData)
+	buf = append(buf, otbm.NodeStartByte, otbm.OTBMMapData)
 
 	// Map data attributes (description, spawn file, house file)
 	if spawnFile != "" {
 		var attrBuf []byte
-		attrBuf = append(attrBuf, otbmAttrSpawnFile)
+		attrBuf = append(attrBuf, otbm.AttrSpawnFile)
 		attrBuf = appendU16(attrBuf, uint16(len(spawnFile)))
 		attrBuf = append(attrBuf, spawnFile...)
 		buf = append(buf, escapeBytes(attrBuf)...)
 	}
 	if houseFile != "" {
 		var attrBuf []byte
-		attrBuf = append(attrBuf, otbmAttrHouseFile)
+		attrBuf = append(attrBuf, otbm.AttrHouseFile)
 		attrBuf = appendU16(attrBuf, uint16(len(houseFile)))
 		attrBuf = append(attrBuf, houseFile...)
 		buf = append(buf, escapeBytes(attrBuf)...)
@@ -138,7 +105,7 @@ func buildOTBMFile(areas []tileAreaEntry, towns []townEntry, waypoints []waypoin
 
 	// Tile areas
 	for _, area := range areas {
-		buf = append(buf, nodeStart, otbmTileArea)
+		buf = append(buf, otbm.NodeStartByte, otbm.OTBMTileArea)
 
 		// TileArea props: baseX(2) + baseY(2) + baseZ(1)
 		var areaProps []byte
@@ -150,13 +117,13 @@ func buildOTBMFile(areas []tileAreaEntry, towns []townEntry, waypoints []waypoin
 		// Tiles
 		for _, tile := range area.tiles {
 			if tile.houseID > 0 {
-				buf = append(buf, nodeStart, otbmHouseTile)
+				buf = append(buf, otbm.NodeStartByte, otbm.OTBMHouseTile)
 				var tileProps []byte
 				tileProps = append(tileProps, tile.offsetX, tile.offsetY)
 				tileProps = appendU32(tileProps, tile.houseID)
 				buf = append(buf, escapeBytes(tileProps)...)
 			} else {
-				buf = append(buf, nodeStart, otbmTile)
+				buf = append(buf, otbm.NodeStartByte, otbm.OTBMTile)
 				var tileProps []byte
 				tileProps = append(tileProps, tile.offsetX, tile.offsetY)
 				buf = append(buf, escapeBytes(tileProps)...)
@@ -164,24 +131,24 @@ func buildOTBMFile(areas []tileAreaEntry, towns []townEntry, waypoints []waypoin
 
 			// Items on tile
 			for _, item := range tile.items {
-				buf = append(buf, nodeStart, otbmItem)
+				buf = append(buf, otbm.NodeStartByte, otbm.OTBMItem)
 				var itemProps []byte
 				itemProps = appendU16(itemProps, item.id)
 				buf = append(buf, escapeBytes(itemProps)...)
-				buf = append(buf, nodeEnd) // item NODE_END
+				buf = append(buf, otbm.NodeEndByte) // item NODE_END
 			}
 
-			buf = append(buf, nodeEnd) // tile NODE_END
+			buf = append(buf, otbm.NodeEndByte) // tile NODE_END
 		}
 
-		buf = append(buf, nodeEnd) // tile area NODE_END
+		buf = append(buf, otbm.NodeEndByte) // tile area NODE_END
 	}
 
 	// Towns
 	if len(towns) > 0 {
-		buf = append(buf, nodeStart, otbmTowns)
+		buf = append(buf, otbm.NodeStartByte, otbm.OTBMTowns)
 		for _, town := range towns {
-			buf = append(buf, nodeStart, otbmTown)
+			buf = append(buf, otbm.NodeStartByte, otbm.OTBMTown)
 			var townProps []byte
 			townProps = appendU32(townProps, town.id)
 			// Town name: uint16 len + string
@@ -192,16 +159,16 @@ func buildOTBMFile(areas []tileAreaEntry, towns []townEntry, waypoints []waypoin
 			townProps = appendU16(townProps, town.templeY)
 			townProps = append(townProps, town.templeZ)
 			buf = append(buf, escapeBytes(townProps)...)
-			buf = append(buf, nodeEnd) // town NODE_END
+			buf = append(buf, otbm.NodeEndByte) // town NODE_END
 		}
-		buf = append(buf, nodeEnd) // towns NODE_END
+		buf = append(buf, otbm.NodeEndByte) // towns NODE_END
 	}
 
 	// Waypoints
 	if len(waypoints) > 0 {
-		buf = append(buf, nodeStart, otbmWaypoints)
+		buf = append(buf, otbm.NodeStartByte, otbm.OTBMWaypoints)
 		for _, wp := range waypoints {
-			buf = append(buf, nodeStart, otbmWaypoint)
+			buf = append(buf, otbm.NodeStartByte, otbm.OTBMWaypoint)
 			var wpProps []byte
 			wpProps = appendU16(wpProps, uint16(len(wp.name)))
 			wpProps = append(wpProps, wp.name...)
@@ -209,13 +176,13 @@ func buildOTBMFile(areas []tileAreaEntry, towns []townEntry, waypoints []waypoin
 			wpProps = appendU16(wpProps, wp.y)
 			wpProps = append(wpProps, wp.z)
 			buf = append(buf, escapeBytes(wpProps)...)
-			buf = append(buf, nodeEnd) // waypoint NODE_END
+			buf = append(buf, otbm.NodeEndByte) // waypoint NODE_END
 		}
-		buf = append(buf, nodeEnd) // waypoints NODE_END
+		buf = append(buf, otbm.NodeEndByte) // waypoints NODE_END
 	}
 
-	buf = append(buf, nodeEnd) // map data NODE_END
-	buf = append(buf, nodeEnd) // root NODE_END
+	buf = append(buf, otbm.NodeEndByte) // map data NODE_END
+	buf = append(buf, otbm.NodeEndByte) // root NODE_END
 	return buf
 }
 
@@ -467,7 +434,7 @@ func TestOTBMMaxDepth(t *testing.T) {
 	buf = append(buf, 0x00, 0x00, 0x00, 0x00) // identifier
 
 	// Root node: OTBM_MAP_HEADER
-	buf = append(buf, nodeStart, 0x00)
+	buf = append(buf, otbm.NodeStartByte, otbm.OTBMMapHeader)
 	var headerProps []byte
 	headerProps = appendU32(headerProps, 2)   // version
 	headerProps = appendU16(headerProps, 256) // width
@@ -477,9 +444,9 @@ func TestOTBMMaxDepth(t *testing.T) {
 	buf = append(buf, escapeBytes(headerProps)...)
 
 	// OTBM_MAP_DATA
-	buf = append(buf, nodeStart, 0x02)
+	buf = append(buf, otbm.NodeStartByte, otbm.OTBMMapData)
 	// OTBM_TILE_AREA
-	buf = append(buf, nodeStart, 0x04)
+	buf = append(buf, otbm.NodeStartByte, otbm.OTBMTileArea)
 	var areaProps []byte
 	areaProps = appendU16(areaProps, 100)
 	areaProps = appendU16(areaProps, 100)
@@ -487,26 +454,26 @@ func TestOTBMMaxDepth(t *testing.T) {
 	buf = append(buf, escapeBytes(areaProps)...)
 
 	// OTBM_TILE
-	buf = append(buf, nodeStart, 0x05)
+	buf = append(buf, otbm.NodeStartByte, otbm.OTBMTile)
 	buf = append(buf, escapeBytes([]byte{0, 0})...) // offset x=0, y=0
 
 	// Nest 50 items deep
 	const depth = 50
 	for i := 0; i < depth; i++ {
-		buf = append(buf, nodeStart, 0x06) // OTBM_ITEM
+		buf = append(buf, otbm.NodeStartByte, otbm.OTBMItem) // OTBM_ITEM
 		var itemProps []byte
 		itemProps = appendU16(itemProps, uint16(2000+i))
 		buf = append(buf, escapeBytes(itemProps)...)
 	}
 	// Close all 50 items
 	for i := 0; i < depth; i++ {
-		buf = append(buf, nodeEnd)
+		buf = append(buf, otbm.NodeEndByte)
 	}
 
-	buf = append(buf, nodeEnd) // tile
-	buf = append(buf, nodeEnd) // tile area
-	buf = append(buf, nodeEnd) // map data
-	buf = append(buf, nodeEnd) // root
+	buf = append(buf, otbm.NodeEndByte) // tile
+	buf = append(buf, otbm.NodeEndByte) // tile area
+	buf = append(buf, otbm.NodeEndByte) // map data
+	buf = append(buf, otbm.NodeEndByte) // root
 
 	// This should not panic with a stack overflow
 	m, err := otbm.LoadMap(buf)
